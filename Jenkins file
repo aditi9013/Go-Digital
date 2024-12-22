@@ -1,0 +1,32 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Build Docker Image') {
+            steps {
+                sh 'docker build -t app-repo .'
+            }
+        }
+        stage('Push to ECR') {
+            steps {
+                sh '''
+                aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <ECR-URI>
+                docker tag app-repo:latest <ECR-URI>:latest
+                docker push <ECR-URI>:latest
+                '''
+            }
+        }
+        stage('Deploy Resources') {
+            steps {
+                sh 'terraform init'
+                sh 'terraform apply -auto-approve'
+            }
+        }
+        stage('Test Lambda') {
+            steps {
+                sh 'aws lambda invoke --function-name data-handler-function response.json'
+                sh 'cat response.json'
+            }
+        }
+    }
+}
